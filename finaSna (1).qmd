@@ -1,0 +1,1112 @@
+---
+title: "Untitled"
+format: html
+editor: visual
+---
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(igraph)
+library(RSiena)
+library(nnet)
+library(modelsummary)
+library(data.table)
+```
+
+# Data Preparation
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+# importing datasets
+wave_1 <- read.csv("/Users/mishudhar/Desktop/sna final/Networks_by_Type/I_can_ask_for_help/1100_24_12.csv", header = TRUE)
+wave_2 <- read.csv("/Users/mishudhar/Desktop/sna final/Networks_by_Type/I_can_ask_for_help/1100_22_12_2h.csv", header = TRUE)
+wave_3 <-  read.csv("/Users/mishudhar/Desktop/sna final/Networks_by_Type/I_can_ask_for_help/1100_21_10_3h.csv", header = TRUE)
+wave_4 <- read.csv("/Users/mishudhar/Desktop/sna final/Networks_by_Type/I_can_ask_for_help/1100_27_10_4h.csv", header = TRUE)
+
+# checking the number of rows
+nrow(wave_1)
+nrow(wave_2)
+nrow(wave_3)
+nrow(wave_4)
+```
+
+# As described in the submitted report, node 1126 and 1131 are removed to keep the simplicity of the analysis.
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+
+# Remove nodes and variables
+wave_1_f <- wave_1[!wave_1$X %in% c(1126, 1131), ]
+wave_1_f <- wave_1_f[, !(colnames(wave_1) %in% c("X1126", "X1131"))]
+nrow(wave_1)
+nrow(wave_1_f)
+dim(wave_1)
+dim(wave_1_f)
+```
+
+Remove the node 1131 from the wave, as it is does not shown in the wave 3
+
+```{r}
+# Remove nodes and variables
+wave_2_f <- wave_2[!wave_2$X %in% c(1131), ]
+wave_2_f <- wave_2_f[, !(colnames(wave_2) %in% c("X1131"))]
+dim(wave_2_f)
+dim(wave_2)
+```
+
+Remove node 1161 as it only presents in the third wave
+
+```{r}
+# Remove nodes and variables
+wave_3_f <- wave_3[!wave_3$X %in% c(1161), ]
+wave_3_f <- wave_3_f[, !(colnames(wave_3) %in% c("X1161"))]
+dim(wave_3)
+dim(wave_3_f)
+```
+
+```{r}
+# Check if all elements in hel_3$X are equal to those in hel_2$X
+all(unique(wave_1_f$X) == unique(wave_2_f$X))
+all(unique(wave_1_f$X) == unique(wave_3_f$X))
+all(unique(wave_2_f$X) == unique(wave_3_f$X))
+```
+
+This steps follows the Step of preparing matrices from the data
+
+```{r}
+# Remove "X" prefix from column names
+#Remove "X" prefix from column names
+b <- wave_1_f
+colnames(b) <- gsub("^X", "", colnames(b))
+
+b_m <- as.matrix(b) 
+class(b_m)
+
+
+head(colnames(b_m),8)
+rownames(b_m)
+head(b_m[,1],8) 
+
+b_m <- b_m[,-1]
+rownames(b_m) <- colnames(b_m)
+dim(b_m)
+
+b_m[is.na(b_m)] <- 0
+head(b_m)
+# ask help, wave 1, matrix
+askhelp_wave1_mat <- b_m
+```
+
+```{r}
+#Remove "X" prefix from column names
+b <- wave_2_f
+colnames(b) <- gsub("^X", "", colnames(b))
+
+b_m <- as.matrix(b) 
+class(b_m)
+
+
+head(colnames(b_m),8)
+rownames(b_m)
+head(b_m[,1],8) 
+
+b_m <- b_m[,-1]
+rownames(b_m) <- colnames(b_m)
+dim(b_m)
+
+b_m[is.na(b_m)] <- 0
+head(b_m)
+# ask help wave 2 matrix
+askhelp_wave2_mat <- b_m
+```
+
+```{r}
+#Remove "X" prefix from column names
+b <- wave_3_f
+colnames(b) <- gsub("^X", "", colnames(b))
+
+b_m <- as.matrix(b) 
+class(b_m)
+
+
+head(colnames(b_m),8)
+rownames(b_m)
+head(b_m[,1],8) 
+
+b_m <- b_m[,-1]
+rownames(b_m) <- colnames(b_m)
+dim(b_m)
+
+b_m[is.na(b_m)] <- 0
+head(b_m)
+# ask help wave 3 matrix
+askhelp_wave3_mat <- b_m
+```
+
+```{r}
+# define function for quantifying change:
+# taken from class lab (Acknowledgement)
+
+Hamming <- function(net1,net2) {
+	tbl <- table(c(0,0,1,1,net1),c(0,1,0,1,net2))-1
+	return(tbl[1,2]+tbl[2,1])
+}
+
+Hamming(askhelp_wave1_mat, askhelp_wave3_mat)
+Hamming(askhelp_wave2_mat, askhelp_wave3_mat)
+Hamming(askhelp_wave1_mat, askhelp_wave2_mat)
+```
+
+# Hamming Distance and Jaccard Index
+
+```{r}
+Jaccard <- function(net1,net2) {
+	tbl <- table(c(0,0,1,1,net1),c(0,1,0,1,net2))-1
+	return(tbl[2,2]/(tbl[1,2]+tbl[2,1]+tbl[2,2]))
+}
+```
+
+```{r}
+friendship_df_2 <- read.csv("/Users/mishudhar/Desktop/sna final/Networks_by_Type/Good_friend/1100_11_2h.csv", header = TRUE)
+
+friendship_df_3 <- read.csv("/Users/mishudhar/Desktop/sna final/Networks_by_Type/Good_friend/1100_19_3h.csv", header = TRUE)
+
+friendship_df_1 <- read.csv("/Users/mishudhar/Desktop/sna final/Networks_by_Type/Good_friend/1100_15_1.csv", header = TRUE)
+
+dim(friendship_df_1)
+dim(friendship_df_2)
+dim(friendship_df_3)
+```
+
+# Preparing the data for friendship over three waves
+
+First removing the nodes 1126 and 1131 in the first wave, 1131 in the second wave, and 1161 in the third wave.
+
+Then converting them into matrices and replacing missing values with 0, etc.
+
+```{r}
+# Remove nodes and variables
+friendship_1_f <- friendship_df_1[!friendship_df_1$X %in% c(1126, 1131), ]
+friendship_1_f <- friendship_1_f[, !(colnames(friendship_1_f) %in% c("X1126", "X1131"))]
+nrow(friendship_1_f)
+nrow(friendship_df_1)
+dim(friendship_df_1)
+dim(friendship_1_f)
+```
+
+```{r}
+# Remove nodes and variables
+friendship_2_f <- friendship_df_2[!friendship_df_2$X %in% c(1131), ]
+friendship_2_f <- friendship_2_f[, !(colnames(friendship_df_2) %in% c("X1131"))]
+dim(friendship_2_f)
+```
+
+```{r}
+# Remove nodes and variables
+friendship_3_f <- friendship_df_3[!friendship_df_3$X %in% c(1161), ]
+friendship_3_f <- friendship_3_f[, !(colnames(friendship_df_3) %in% c("X1161"))]
+dim(friendship_3_f)
+```
+
+```{r}
+#Remove "X" prefix from column names
+b <- friendship_1_f
+colnames(b) <- gsub("^X", "", colnames(b))
+
+b_m <- as.matrix(b) 
+class(b_m)
+
+
+head(colnames(b_m),8)
+rownames(b_m)
+head(b_m[,1],8) 
+
+b_m <- b_m[,-1]
+rownames(b_m) <- colnames(b_m)
+dim(b_m)
+
+b_m[is.na(b_m)] <- 0
+head(b_m)
+
+friendship_wave1_mat <- b_m
+```
+
+```{r}
+#Remove "X" prefix from column names
+b <- friendship_2_f
+colnames(b) <- gsub("^X", "", colnames(b))
+
+b_m <- as.matrix(b) 
+class(b_m)
+
+
+#head(colnames(b_m),8)
+rownames(b_m)
+#head(b_m[,1],8) 
+
+b_m <- b_m[,-1]
+rownames(b_m) <- colnames(b_m)
+dim(b_m)
+
+b_m[is.na(b_m)] <- 0
+#head(b_m)
+
+friendship_wave2_mat <- b_m
+dim(friendship_wave2_mat)
+```
+
+```{r}
+#Remove "X" prefix from column names
+b <- friendship_3_f
+colnames(b) <- gsub("^X", "", colnames(b))
+
+b_m <- as.matrix(b) 
+class(b_m)
+
+
+#head(colnames(b_m),8)
+rownames(b_m)
+#head(b_m[,1],8) 
+
+b_m <- b_m[,-1]
+rownames(b_m) <- colnames(b_m)
+dim(b_m)
+
+b_m[is.na(b_m)] <- 0
+#head(b_m)
+
+friendship_wave3_mat <- b_m
+dim(friendship_wave3_mat)
+```
+
+```{r}
+Hamming(friendship_wave1_mat, friendship_wave2_mat)
+```
+
+```{r}
+# this is just for checking
+# I wach checking 
+# PREDICTOR NETWORK (time-varying):
+Friendship <- varDyadCovar(array(c(friendship_wave1_mat, friendship_wave2_mat, friendship_wave3_mat),
+	dim=c(30,30,3)))
+```
+
+```{r}
+# Check if all elements in hel_3$X are equal to those in hel_2$X
+all(unique(wave_1_f$X) == unique(friendship_2_f$X))
+all(unique(wave_1_f$X) == unique(friendship_3_f$X))
+all(unique(wave_2_f$X) == unique(friendship_3_f$X))
+```
+
+# Creating a data frame based on description in the Report of the Assmuption section in the first page
+
+This will be used as constant variant atributes
+
+```{r}
+# Creating a vector of unique nodes
+nodes <- c(1101, 1103, 1104, 1105, 1106, 1107, 1108, 1109, 1110, 1111, 
+           1112, 1113, 1114, 1115, 1116, 1117, 1118, 1119, 1120, 1121, 
+           1122, 1123, 1124, 1125, 1127, 1128, 1129, 1130, 1132, 1133)
+
+
+# Number of nodes
+n <- length(nodes)
+
+# Generating sex where 60% are female (1) and 40% are male (2)
+sex <- c(rep(1, round(n * 0.6)), rep(2, n - round(n * 0.6)))
+sex <- sample(sex)  # Shuffle
+
+# Generating GPA between 93 and 111
+marks <- sample(80:100, n, replace = TRUE)
+
+# Generating AGE, assuming a range for simplicity (you didn't specify this part)
+AGE <- sample(14:18, n, replace = TRUE)
+
+# Generating degree, skewed towards 1 and 2
+gradePoint <- c(rep(1, round(n * 0.4)), rep(2, round(n * 0.4)), sample(3:6, n - 2*round(n * 0.4), replace = TRUE))
+ # Shuffle to randomize distribution
+gradePoint <- sample(degree) 
+
+# Creating the dataframe
+df <- data.frame(nodes, sex, marks, AGE, gradePoint)
+
+# Display the first few rows of the dataframe
+head(df)
+
+```
+
+```{r}
+# CONSTANT ACTOR ATTRIBUTES:
+gender <- coCovar(df$sex)
+gpa <- coCovar(df$gradePoint)
+```
+
+# Preparing the "solve dispute" data and calculating the overall dispute scores for each nodes in all three waves
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+dispute_1 <- read.csv("/Users/mishudhar/Desktop/sna final/Networks_by_Type/Solves_disputes/1100_24_10.csv",
+                     header = TRUE)
+
+dispute_2 <- read.csv("/Users/mishudhar/Desktop/sna final/Networks_by_Type/Solves_disputes/1100_22_10_2h.csv",
+                      header = TRUE)
+
+dispute_3 <- read.csv("/Users/mishudhar/Desktop/sna final/Networks_by_Type/Solves_disputes/1100_21_8_3h.csv",
+                      header = TRUE)
+
+dipute_4 <- read.csv("/Users/mishudhar/Desktop/sna final/Networks_by_Type/Solves_disputes/1100_27_8_4h.csv",
+                     header = TRUE)
+
+```
+
+```{r}
+head(dispute_1)
+```
+
+```{r}
+# Replace NAs with zeros
+dispute_1_df <- dispute_1
+dispute_1_df[is.na(dispute_1_df)] <- 0
+
+# Create new column "t1" with row sums
+dispute_1_df$t1 <- rowSums(dispute_1_df)
+
+# Print the updated data frame
+head(dispute_1_df)
+
+```
+
+```{r}
+b <- dispute_3
+colnames(b) <- gsub("^X", "", colnames(b))
+
+# Sum across rows and create a new column 'T1'
+b$T1 <- rowSums(b, na.rm = TRUE)
+head(b)
+```
+
+```{r}
+dispute_1_f <- dispute_1[!dispute_1$X %in% c(1126, 1131), ]
+dispute_1_f <- dispute_1_f[, !(colnames(dispute_1_f) %in% c("X1126", "X1131"))]
+
+dim(dispute_1_f)
+dim(dispute_1)
+```
+
+```{r}
+# Remove nodes and variables
+dispute_2_f <- dispute_2[!dispute_2$X %in% c(1131), ]
+dispute_2_f <- dispute_2_f[, !(colnames(dispute_2_f) %in% c("X1131"))]
+```
+
+```{r}
+dim(dispute_2_f)
+dim(dispute_2)
+```
+
+```{r}
+# Remove nodes and variables
+dispute_3_f <- dispute_3[!dispute_3$X %in% c(1161), ]
+dispute_3_f <- dispute_3_f[, !(colnames(dispute_3_f) %in% c("X1161"))]
+dim(dispute_3_f)
+dim(dispute_3)
+```
+
+```{r}
+dispute_1_f <- dispute_1_f[, !(colnames(dispute_1_f) %in% c("X"))]
+
+```
+
+```{r}
+# replace missing values with 0
+dispute_1_f[is.na(dispute_1_f)] <- 0
+# Create a new variable 'T1' for the sum of all values in each row
+dispute_1_f$T1 <- rowSums(dispute_1_f, na.rm = TRUE)
+#dispute_1_f
+```
+
+```{r}
+dispute_1_f[is.na(dispute_1_f)] <- 0
+# Create a new variable 'T1' for the sum of all values in each row
+dispute_1_f$T1 <- rowSums(dispute_1_f, na.rm = TRUE)
+```
+
+```{r}
+dispute_2_f <- dispute_2_f[, !(colnames(dispute_2_f) %in% c("X"))]
+# replace missing values with 0
+dispute_2_f[is.na(dispute_2_f)] <- 0
+# Create a new variable 'T1' for the sum of all values in each row
+dispute_2_f$T2 <- rowSums(dispute_2_f, na.rm = TRUE)
+#dispute_1_f
+length(dispute_2_f$T2)
+```
+
+```{r}
+dispute_3_f <- dispute_3_f[, !(colnames(dispute_3_f) %in% c("X"))]
+# replace missing values with 0
+dispute_3_f[is.na(dispute_3_f)] <- 0
+# Create a new variable 'T1' for the sum of all values in each row
+dispute_3_f$T3 <- rowSums(dispute_3_f, na.rm = TRUE)
+#dispute_1_f
+length(dispute_3_f$T3)
+```
+
+```{r}
+# Define the values for X, T1, T2, and T3
+nodes <- c(1101, 1103, 1104, 1105, 1106, 1107, 1108, 1109, 1110, 1111, 1112, 1113, 1114, 1115, 1116, 1117, 1118, 1119, 1120, 1121, 1122, 1123, 1124, 1125, 1127, 1128, 1129, 1130, 1132, 1133)
+T1 <- c(12, 0, 12, 0, 24, 0, 0, 4, 4, 0, 28, 76, 0, 4, 0, 12, 12, 4, 12, 0, 0, 16, 0, 8, 4, 0, 0, 0, 0, 12)
+T2 <- c(6, 4, 8, 0, 10, 0, 0, 0, 0, 0, 14, 0, 0, 0, 8, 6, 4, 0, 0, 0, 6, 0, 0, 2, 2, 0, 0, 0, 16, 6)
+T3 <- c(2, 2, 0, 4, 10, 0, 0, 0, 10, 2, 0, 4, 0, 0, 8, 4, 8, 2, 4, 0, 0, 2, 0, 6, 0, 2, 0, 0, 2, 0)
+
+# Create the new data frame 'dispute'
+dispute <- data.frame(node = nodes, T1 = T1, T2 = T2, T3 = T3)
+
+# View the new data frame 'dispute'
+head(dispute)
+
+```
+
+```{r}
+Dispute <- dispute
+Dispute
+```
+
+```{r}
+# Assign row names to the data frame
+ddd <- Dispute
+rownames(ddd) <- as.character(ddd$node)
+
+# Remove the 'node' column
+ddd <- ddd[, -1]
+
+# Convert the data frame to a matrix
+ddd_mat <- as.matrix(ddd)
+
+# View the resulting matrix i.e dispute matrix
+head(ddd_mat)
+
+```
+
+# Descriptive Statistics and Visualization
+
+```{r}
+ham_distannce_1 <- Hamming(askhelp_wave1_mat, askhelp_wave3_mat)
+cat("Hamming Distance from Wave 1 to wave 3:", ham_distannce_1, "\n")
+```
+
+It indicates 126 positions where the values differ between the "I can ask for help" network matrices for wave 1 and wave 3. The Hamming distance of 126 signifies the extent of change in the network structure or the advice-seeking ties between wave 2 and wave 3. It depends on the size of the networks and this value should be considered as high or low. Considering the relatively large Hamming distance compared to the size of the network (30 nodes), it suggests substantial changes in the connections or relationships between the nodes from wave 1 to wave 3.
+
+```{r}
+# jaccard Index
+Jaccard(askhelp_wave1_mat, askhelp_wave3_mat)
+```
+
+With a value of approximately 0.265, it suggests that about 26.5% of the edges present in one network (wave 2) are also present in another network (wave3).
+
+```{r}
+#| include: false
+#| message: false
+#| warning: false
+
+library(sna)
+library(network)
+```
+
+```{r}
+net_firstwave <- as.network(askhelp_wave1_mat)
+net_secondwave <- as.network(askhelp_wave2_mat)
+net_thirdwave <- as.network(askhelp_wave3_mat)
+
+# socio matrix first wave
+plot.sociomatrix( net_firstwave,drawlab = F, diaglab = F, xlab = 'Ask for Help- First Wave' )
+
+# plot.sociomatrix( net3,drawlab = F, diaglab = F, xlab = 'friendship t3' )
+```
+
+Socio-matrix second wave
+
+```{r}
+plot.sociomatrix( net_secondwave,drawlab = F, diaglab = F, xlab = 'Ask for Help- Second Wave' )
+```
+
+socio-matrix third wave
+
+```{r}
+plot.sociomatrix( net_thirdwave,drawlab = F, diaglab = F, xlab = 'Ask for Help- Third Wave' )
+```
+
+```{r}
+#| echo: false
+#| warning: false
+
+
+
+# Adding gender as attribute
+net_firtswave %v% "gender" <- df$sex
+
+# color the nodes by gender
+
+plot( net_firtswave, vertex.col = "gender", xlab = 'First Wave',
+      vertex.label.cex = 1,
+      vertex.label = NA)
+```
+
+```{r}
+# converting the first wave network into igraph object
+g_firstwave <- graph_from_adjacency_matrix(askhelp_wave1_mat, mode = "directed")
+
+# adding the vertext attributes
+grade <- df$gradePoint
+genders <- df$sex
+dispute_first <- ddd_mat[, 1]
+g_firstwave <- set_vertex_attr(g_firstwave, "genders", value = genders)
+g_firstwave <- set_vertex_attr(g_firstwave, "grade", value = grade)
+g_firstwave <- set_vertex_attr(g_firstwave, "leadership", value = dispute_first)
+
+# Set vertex color by gender
+V(g_firstwave)$color <- ifelse(V(g_firstwave)$genders == "1", "orange", "dodgerblue")
+# Plot the graph
+plot(g_firstwave, vertex.label.color = "black",
+     edge.arrow.size = 0.1,
+     main = "Asking for Help Network- First Wave")
+
+
+
+# Add a legend
+legend("bottomright", 
+       legend = c("Female", "Male"),
+       col = c("orange", "dodgerblue"), 
+       pch = 20,
+       title = "Gender",
+       cex = 0.8)
+
+```
+
+```{r}
+# Convert adjacency matrices to igraph objects
+g_wave1 <- graph_from_adjacency_matrix(askhelp_wave1_mat, mode = "directed")
+g_wave2 <- graph_from_adjacency_matrix(askhelp_wave2_mat, mode = "directed")
+g_wave3 <- graph_from_adjacency_matrix(askhelp_wave3_mat, mode = "directed")
+
+# Set vertex attributes for each wave
+# Assuming df is your dataframe with attributes
+g_wave1 <- set_vertex_attr(g_wave1, "gender", value = df$sex)
+g_wave1 <- set_vertex_attr(g_wave1, "grade", value = df$gradePoint)
+g_wave1 <- set_vertex_attr(g_wave1, "leadership", value = ddd_mat[, 1])
+
+g_wave2 <- set_vertex_attr(g_wave2, "gender", value = df$sex)
+g_wave2 <- set_vertex_attr(g_wave2, "grade", value = df$gradePoint)
+g_wave2 <- set_vertex_attr(g_wave2, "leadership", value = ddd_mat[, 2])
+
+g_wave3 <- set_vertex_attr(g_wave3, "gender", value = df$sex)
+g_wave3 <- set_vertex_attr(g_wave3, "grade", value = df$gradePoint)
+g_wave3 <- set_vertex_attr(g_wave3, "leadership", value = ddd_mat[, 3])
+
+# Plot each network with the same layout
+par(mfrow = c(1, 3))  # Arrange plots in a single row
+plot(g_wave1, layout = layout_with_fr(g_wave1), vertex.label.color = "black", main = "Wave 1",
+     edge.arrow.size = 0.1)
+plot(g_wave2, layout = layout_with_fr(g_wave1), vertex.label.color = "black", main = "Wave 2",
+     edge.arrow.size = 0.1)
+plot(g_wave3, layout = layout_with_fr(g_wave1), vertex.label.color = "black", main = "Wave 3",
+     edge.arrow.size = 0.1)
+
+```
+
+```{r}
+#| echo: false
+#| warning: false
+
+
+
+# Save the plot with high resolution
+#png("network_plots_12.png", width = 16, height = 6, units = "in", res = 300, pointsize = 12)
+par(mfrow = c(1, 3), oma = c(0, 0, 2, 0)) 
+
+# Define layout for all three waves, increasing the area parameter for less overlap
+layout <- layout_with_fr(g_wave1, area = vcount(g_wave1)^2 * 0.05)
+
+plot(g_wave1, layout = layout, vertex.label.color = "black", main = "First Wave",
+     edge.arrow.size = 0.2,  # Smaller arrows
+     vertex.size = 15,       # Adjust vertex size if needed
+     vertex.label.cex = 1,  # Smaller labels
+     vertex.label.dist = 1)  # Increase label distance
+
+plot(g_wave2, layout = layout, vertex.label.color = "black", main = "Second Wave",
+     edge.arrow.size = 0.2,
+     vertex.size = 15,
+     vertex.label.cex = 1,
+     vertex.label.dist = 1)
+
+plot(g_wave3, layout = layout, vertex.label.color = "black", main = "Third Wave",
+     edge.arrow.size = 0.2,
+     vertex.size = 15,
+     vertex.label.cex = 1,
+     vertex.label.dist = 1)
+
+# Add a legend outside the plot area
+legend("bottom", inset = c(-0.1, 0), legend = c("Male", "Female"), fill = c("dodgerblue", "orange"), title = "Gender", horiz = TRUE, cex = 0.8)
+#dev.off()
+
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+
+# Save the plot with high resolution
+png("network_plots_leadership_only.png", width = 16, height = 6, units = "in", res = 300, pointsize = 12)
+par(mfrow = c(1, 3), oma = c(0, 0, 2, 0))  # Adjust outer margins
+
+# Define layout for all three waves, using a fixed layout for consistent node positions
+layout <- layout_with_fr(g_wave1, area = vcount(g_wave1)^2 * 1.5)
+
+# Function to set colors based on leadership attribute
+set_vertex_colors <- function(graph) {
+  leadership <- vertex_attr(graph, "leadership")
+  # Color nodes red if leadership is 10 or greater, otherwise gray
+  colors <- ifelse(leadership >= 10, "green", "dodgerblue")
+  return(colors)
+}
+
+# First wave plot
+V(g_wave1)$color <- set_vertex_colors(g_wave1)
+plot(g_wave1, layout = layout, vertex.label.color = "black", main = "First Wave",
+     edge.arrow.size = 0.3,
+     vertex.size = 15,
+     vertex.label.cex = 1,
+     vertex.label.dist = 1,
+     vertex.label.degree = -pi/4)
+
+# Second wave plot
+V(g_wave2)$color <- set_vertex_colors(g_wave2)
+plot(g_wave2, layout = layout, vertex.label.color = "black", main = "Second Wave",
+     edge.arrow.size = 0.3,
+     vertex.size = 15,
+     vertex.label.cex = 0.9,
+     vertex.label.dist = 0.9,
+     vertex.label.degree = -pi/4)
+
+# Third wave plot
+V(g_wave3)$color <- set_vertex_colors(g_wave3)
+plot(g_wave3, layout = layout, vertex.label.color = "black", main = "Third Wave",
+     edge.arrow.size = 0.3,
+     vertex.size = 15,
+     vertex.label.cex = 1,
+     vertex.label.dist = 1,
+     vertex.label.degree = -pi/4)
+
+# Add a legend outside the plot area
+legend("bottom", inset = c(-0.1, 0), legend = c("High Leadership", "Other"), fill = c("green", "dodgerblue"), title = "Leadership Level", horiz = TRUE, cex = 0.8)
+dev.off()
+
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+
+# Save the plot with high resolution
+png("network_plots_grade_only_1.png", width = 16, height = 6, units = "in", res = 300, pointsize = 12)
+par(mfrow = c(1, 3), oma = c(0, 0, 2, 0))  # Adjust outer margins
+
+# Define layout for all three waves, using a fixed layout for consistent node positions
+#layout <- layout_with_fr(g_wave1, area = vcount(g_wave1)^2 * 1.5)
+la <- layout_with_graphopt(g_wave1, niter=500, mass=2500)*1000
+
+# Function to set colors based on gradePoint attribute
+set_vertex_colors <- function(graph) {
+  grade <- vertex_attr(graph, "grade")
+  # Color nodes green if gradePoint is 4 or greater, otherwise gray
+  colors <- ifelse(grade >= 4, "green", "skyblue")
+  return(colors)
+}
+
+# First wave plot
+V(g_wave1)$color <- set_vertex_colors(g_wave1)
+plot(g_wave1, layout = la * 1000, vertex.label.color = "black", main = "First Wave",
+     edge.arrow.size = 0.35,
+     vertex.size = 23,
+     vertex.label.cex = 0.65,
+     vertex.label.dist = 1,
+     vertex.label.degree = -pi/4)
+
+# Second wave plot
+V(g_wave2)$color <- set_vertex_colors(g_wave2)
+plot(g_wave2, layout = la * 1000, vertex.label.color = "black", main = "Second Wave",
+     edge.arrow.size = 0.35,
+     vertex.size = 23,
+     vertex.label.cex = 0.65,
+     vertex.label.dist = 1,
+     vertex.label.degree = -pi/4)
+
+# Third wave plot
+V(g_wave3)$color <- set_vertex_colors(g_wave3)
+plot(g_wave3, layout = la * 1000, vertex.label.color = "black", main = "Third Wave",
+     edge.arrow.size = 0.35,
+     vertex.size = 23,
+     vertex.label.cex = 0.65,
+     vertex.label.dist = 1,
+     vertex.label.degree = -pi/4)
+
+# Add a legend outside the plot area
+legend("bottom", inset = c(-0.1, 0), legend = c("High Grade", "Other"), fill = c("green", "lightblue"), title = "Grade Level", horiz = TRUE, cex = 0.8)
+dev.off()
+
+```
+
+```{r}
+# Identify key nodes using eigenvector centrality
+key_nodes_wave2 <- eigen_centrality(g_wave2)
+which.max(key_nodes_wave2$vector)
+
+# Plot Network
+plot(g_wave1,
+     vertex.label.color = "black", 
+     vertex.label.cex = 1,
+     vertex.size = 20*(key_nodes_wave2$vector),
+     edge.color = 'black',
+     layout = layout_nicely(net2),
+     vertex.label.dist = 0.05,
+     edge.arrow.size = 0.1,
+     main = "Wave2- Influential Nodes"
+)
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+# Save the plot with high resolution
+png("network_plots_12.png", width = 16, height = 6, units = "in", res = 300, pointsize = 12)
+par(mfrow = c(1, 3), oma = c(0, 0, 2, 0))  # Adjust outer margins to give more space for titles and legend
+
+# Define layout for all three waves, increasing the area parameter for less overlap
+layout <- layout_with_fr(g_wave1, area = vcount(g_wave1)^2 * 0.05)
+
+plot(g_wave1, layout = layout, vertex.label.color = "black", main = "First Wave",
+     edge.arrow.size = 0.2,  # Smaller arrows
+     vertex.size = 15,       # Adjust vertex size if needed
+     vertex.label.cex = 1,  # Smaller labels
+     vertex.label.dist = 1)  # Increase label distance
+
+plot(g_wave2, layout = layout, vertex.label.color = "black", main = "Second Wave",
+     edge.arrow.size = 0.2,
+     vertex.size = 15,
+     vertex.label.cex = 1,
+     vertex.label.dist = 1)
+
+plot(g_wave3, layout = layout, vertex.label.color = "black", main = "Third Wave",
+     edge.arrow.size = 0.2,
+     vertex.size = 15,
+     vertex.label.cex = 1,
+     vertex.label.dist = 1)
+
+# Add a legend outside the plot area
+legend("bottom", inset = c(-0.1, 0), legend = c("Male", "Female"), fill = c("dodgerblue", "orange"), title = "Gender", horiz = TRUE, cex = 0.8)
+dev.off()
+
+```
+
+```{r}
+# Load necessary library
+library(sna)
+
+# Setting up the plotting window
+png(filename = "socio_matrices.png", width = 2400, height = 800, res = 300)
+par(mfrow = c(1, 3))  # Arrange plots in 1 row, 3 columns
+
+# Plotting sociomatrices
+plot.sociomatrix(net_firstwave, drawlab = FALSE, diaglab = FALSE, xlab = 'Ask for Help - First Wave', main = "First Wave")
+plot.sociomatrix(net_secondwave, drawlab = FALSE, diaglab = FALSE, xlab = 'Ask for Help - Second Wave', main = "Second Wave")
+plot.sociomatrix(net_thirdwave, drawlab = FALSE, diaglab = FALSE, xlab = 'Ask for Help - Third Wave', main = "Third Wave")
+
+# Finalizing the plot
+dev.off()  # Close the plotting device
+
+```
+
+```{r}
+Hamming(askhelp_wave1_mat, askhelp_wave3_mat)
+```
+
+```{r}
+Jaccard(askhelp_wave1_mat, askhelp_wave3_mat)
+```
+
+```{r}
+gden( net_firstwave ) # density
+grecip( net_firstwave ) # proportion of dyads that are symmetric
+grecip( net_firstwave, measure = "dyadic.nonnull" ) # reciprocity, ignoring the null dyads
+gtrans( net_firstwave ) # transitivity
+```
+
+For the Network- first wave
+
+Density: The density of the network is approximately 0.116, which indicates that about 11.6% of all possible ties are present in the network.
+
+Reciprocity: The proportion of dyads that are symmetric (mutually connected) in the network is 0.864, indicating a high level of reciprocity where most dyads have mutual connections.
+
+Reciprocity ignoring null dyads: When ignoring null dyads (dyads with no ties), the reciprocity is 0.262, refering that about 26.2% of the non-null dyads have mutual connections.
+
+Transitivity: The transitivity of the network is approximately 0.455, means that the extent to which ties in the network tend to cluster together.
+
+```{r}
+gden( net_thirdwave ) # density
+grecip( net_thirdwave ) # proportion of dyads that are symmetric
+grecip( net_thirdwave, measure = "dyadic.nonnull" ) # reciprocity, ignoring the null dyads
+gtrans( net_thirdwave ) # transitivity
+```
+
+Comparing the network metrics between the third wave (net_thirdwave) and the first wave (net_firstwave):
+
+The density of the third wave network (0.134) is slightly higher than that of the first wave network (0.116), indicating a greater proportion of ties in the third wave.
+
+Reciprocity: The proportion of dyads that are symmetric (mutually connected) in the third wave network (0.818) is slightly lower than that of the first wave network (0.864), suggesting a slight decrease in reciprocal connections between nodes.
+
+ Reciprocity (excluding null dyads): When ignoring null dyads, the reciprocity of the third wave network (0.194) is notably lower than that of the first wave network (0.262), indicating a decrease in reciprocal connections when considering only non-null dyads.
+
+Transitivity: The transitivity of the third wave network (0.524) is slightly higher than that of the first wave network (0.455), indicating a greater tendency for ties to cluster together in the third wave.
+
+```{r}
+dyad.census(net_firtswave)
+```
+
+```{r}
+dyad.census(net_thirdwave)
+```
+
+In first wave, there are 21 mutual dyads, 59 asymmetric dyads, and 355 null dyads.
+
+In thirdwave, there are 19 mutual dyads, 79 asymmetric dyads, and 337 null dyads.
+
+Overall, the number of mutual dyads is slightly lower in third wave compared to first wave indicating a minor decrease in reciprocated connections. Conversely, both the number of asymmetric and null dyads is slightly higher in thirdwave suggesting a slight increase in one-sided and non-existent connections in the network.
+
+```{r}
+triad.census(net_firstwave)
+```
+
+```{r}
+triad.census(net_thirdwave)
+```
+
+In the first wave, there are 2229 triads with no ties among the three nodes, indicating disconnected groups. Additionally, there are 1088 triads with one mutual and one asymmetric tie, suggesting mixed reciprocated and unreciprocated relationships.
+
+In the third wave, similar patterns are observed with 1921 triads of type 003 and variations in other triad types, reflecting potential changes in the network structure over time.
+
+```{r}
+# network layout
+set.seed(45)
+la <- layout_with_graphopt(g_wave1, niter=500, mass=2500)*1000
+plot(g_wave1, layout=la*1000,
+	vertex.size= 10,
+	vertex.label.color="black",
+	vertex.label.cex=.65,
+	edge.color="black",
+	edge.arrow.size=0.35,
+	caption="")
+title(main="Network- Frist Wave", cex.main=3.5)
+```
+
+```{r}
+# network layout
+set.seed(45)
+la <- layout_with_graphopt(g_wave1, niter=500, mass=2500)*1000
+plot(g_wave2, layout=la*1000,
+	vertex.size= 10,
+	vertex.label.color="black",
+	vertex.label.cex=.65,
+	edge.color="black",
+	edge.arrow.size=0.35,
+	caption="")
+title(main="Network- Second Wave", cex.main=3.5)
+```
+
+```{r}
+plot(g_wave3, layout=la*1000,
+    vertex.size= 10,
+    vertex.label.color="black",
+    vertex.label.cex=.65,
+    vertex.color=gender_colors, 
+    edge.color="black",
+    edge.arrow.size=0.35,
+    caption="")
+title(main="Network- Third Wave", cex.main=3.5)
+```
+
+# SAOMs
+
+```{r}
+# Prepare data in "RSiena" format:
+# DEPENDENT NETWORK:
+ask <- sienaDependent(array(c(askhelp_wave1_mat, askhelp_wave2_mat, askhelp_wave3_mat),
+	dim=c(30, 30 ,3)))
+# PREDICTOR NETWORK (time-varying):
+friendship <- varDyadCovar(array(c(friendship_wave1_mat, friendship_wave2_mat),
+	dim=c(30, 30, 2)))
+# CONSTANT ACTOR ATTRIBUTES:
+# CONSTANT ACTOR ATTRIBUTES:
+gender <- coCovar(df$sex)
+gpa <- coCovar(df$gradePoint)
+# TIME-VARYING ACTOR ATTRIBUTE:
+dispute_wave <- varCovar(ddd_mat[, 1:2])
+# JOIN THEM ALL INTO DATA OBJECT FOR SAOM:
+Thedata <- sienaDataCreate(ask, friendship, gender, gpa, dispute_wave)
+```
+
+```{r}
+# Specify model for the dynamics of advice seeking:
+(Themodel <- getEffects(Thedata)) # default: rate, outdegree, reciprocity
+# ADD EFFECTS TO OBJECTIVE FUNCTION:
+Themodel <- includeEffects(Themodel,
+	transTrip, transRecTrip) # clustering
+Themodel <- includeEffects(Themodel,
+	X, interaction1='friendship') # friendship main effect
+Themodel <- includeEffects(Themodel,
+	egoX,altX, # sender, receiver, and ..
+	sameX,interaction1='gender') # .. homophily effects on gender
+Themodel <- includeEffects(Themodel,
+	sameX, interaction1='gpa') # educational background homophily
+Themodel <- includeEffects(Themodel,
+	egoX, altX, # sender, receiver, and ..
+	simX, interaction1='dispute_wave') # .. homophily effects on performance
+# INSPECT MODEL SPECIFICATION:
+Themodel
+
+```
+
+```{r}
+# Estimate it and inspect results:
+controls <- sienaAlgorithmCreate(seed=12345)
+# seed=12345 : safeguards we all get same randon numbers & hence results
+(Theresults <- siena07(controls, data=Thedata, effects=Themodel))
+
+
+```
+
+```{r}
+# make HTML table:
+html_table <- siena.table(Theresults, type="html", tstat=TRUE, sig=TRUE, d=2)
+# Write HTML content to a file
+# writeLines(html_table, "Theresults.html")
+browseURL("Theresults.html")
+```
+
+interpretation
+
+```{r}
+	# Enrich model by endogenous, degree-related terms:
+	Model2 <- includeEffects(Themodel, name ='ask',inPop,outAct,inAct) # degree effects
+	(Results2 <- siena07(controls, data =Thedata, effects = Model2))
+
+
+```
+
+```{r}
+# again make HTML table:
+	siena.table(Results2, type="html", tstat=TRUE, sig=TRUE, d=2)
+	browseURL("Results2.html")
+```
+
+There is no evidence of Mathew effect (in-degree popularity)
+
+```{r}
+# specify the options for the simulation algorithm:
+Simcontrols <- sienaAlgorithmCreate(n3=250,nsub=0,seed=12345)
+# nsub=0 : phase 2 (parameter estimation) will be skipped
+# n3=250 : in phase 3, sample 250 independent network evolution processes
+
+# add simulated networks to model results:
+Thesims <- siena07(simcontrols, data= Thedata, effects=themodel,
+	returnDeps=TRUE, # simulated networks at ends of observation period made available
+	prevAns=theresults) # use estimates from "theresults" for simulations
+
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+
+# specify the options for the simulation algorithm:
+simcontrols <- sienaAlgorithmCreate(n3=250,nsub=0,seed=12345)
+# nsub=0 : phase 2 (parameter estimation) will be skipped
+# n3=250 : in phase 3, sample 250 independent network evolution processes
+
+# add simulated networks to model results:
+Thesims <- siena07(simcontrols, data=Thedata, effects=Themodel,
+	returnDeps=TRUE, # simulated networks at ends of observation period made available
+	prevAns=Theresults)
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+
+# goodness of fit for indegree distribution:
+(gofIndegrees <- sienaGOF(Thesims, varName="ask",
+	IndegreeDistribution, # the fit function to be evaluated
+	cumulative=FALSE, # (same meaning as in probability distributions)
+	levls=0:15)) # evaluate indegrees on these 16 fit dimensions
+
+plot(gofIndegrees) 
+
+
+```
+
+Looks bad at In-degree 3, 4, 5, and 7 but P value is in non-significant region fit acceptable.
+
+```{r}
+# goodness of fit for outdegree distribution:
+(gofOutdegrees <- sienaGOF(Thesims, varName="ask",
+	OutdegreeDistribution, cumulative=FALSE, levls=0:15)) 
+
+plot(gofOutdegrees) 
+```
+
+Looks bad at out-degree 0, 2,3 4, and 5. P value is non-significant. Model fit moderately.
+
+```{r}
+# goodness of fit for triad census:
+(gofTriads <- sienaGOF(Thesims, varName="ask", TriadCensus, verbose=TRUE))
+
+plot(gofTriads,center=TRUE,scale=TRUE)
+```
+
+```{r}
+	# Enrich model as suggested by triad census misfit:
+Model3 <- includeEffects(Themodel,name='ask',inPop,reciAct)
+(Results3 <- siena07(controls, data=Thedata, effects=Model3))
+
+	
+```
+
+```{r}
+# again make HTML table:
+siena.table(Results3, type="html", tstat=TRUE, sig=TRUE, d=2)
+browseURL("Results3.html")
+```
